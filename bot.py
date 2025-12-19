@@ -186,21 +186,21 @@ class TicketView(View):
             ephemeral=True
         )
 
-@discord.ui.button(label="Question", style=discord.ButtonStyle.primary)
-async def question(self, interaction, button):
-    await self.create_ticket(interaction, "question")
+    @discord.ui.button(label="📩 Question", style=discord.ButtonStyle.primary)
+    async def question(self, interaction, button):
+        await self.create_ticket(interaction, "question")
 
-@discord.ui.button(label="PAY", style=discord.ButtonStyle.success)
-async def pay(self, interaction, button):
-    await self.create_ticket(interaction, "pay")
+    @discord.ui.button(label="🛒 Purchase", style=discord.ButtonStyle.success)
+    async def purchase(self, interaction, button):
+        await self.create_ticket(interaction, "purchase")
 
-@discord.ui.button(label="Complaint", style=discord.ButtonStyle.danger)
-async def complaint(self, interaction, button):
-    await self.create_ticket(interaction, "complaint")
+    @discord.ui.button(label="⚠️ Complaint", style=discord.ButtonStyle.danger)
+    async def complaint(self, interaction, button):
+        await self.create_ticket(interaction, "complaint")
 
-@discord.ui.button(label="Suggestion", style=discord.ButtonStyle.secondary)
-async def suggestion(self, interaction, button):
-    await self.create_ticket(interaction, "suggestion")
+    @discord.ui.button(label="💡 Suggestion", style=discord.ButtonStyle.secondary)
+    async def suggestion(self, interaction, button):
+        await self.create_ticket(interaction, "suggestion")
 
 # ================== EVENTS ==================
 @bot.event
