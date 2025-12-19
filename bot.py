@@ -57,13 +57,23 @@ class CloseTicketView(View):
         super().__init__(timeout=None)
         self.ticket_number = ticket_number
 
-    @discord.ui.button(label="❌ إغلاق التذكرة", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="❌ Close Ticket", style=discord.ButtonStyle.danger)
     async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+
         support_role = interaction.guild.get_role(SUPPORT_ROLE_ID)
         if support_role not in interaction.user.roles:
-            return await interaction.response.send_message(
-                "❌ الإغلاق فقط لفريق الدعم", ephemeral=True
+            return await interaction.followup.send(
+                "❌ Only support staff can close tickets."
             )
+
+        # Get ticket owner from topic
+        owner_id = int(interaction.channel.topic.replace("owner:", ""))
+        owner = interaction.guild.get_member(owner_id)
+
+        # Remove user's access completely (ticket disappears)
+        if owner:
+            await interaction.channel.set_permissions(owner, overwrite=None)
 
         closed_category = interaction.guild.get_channel(CLOSED_CATEGORY_ID)
 
@@ -72,22 +82,38 @@ class CloseTicketView(View):
             category=closed_category
         )
 
-        await interaction.response.send_message(
-            f"🔒 تم إغلاق التذكرة #{self.ticket_number}",
-            ephemeral=True
+        await interaction.channel.send(
+            f"🔒 Ticket **#{self.ticket_number}** has been closed by {interaction.user.mention}"
         )
 
-    @discord.ui.button(label="🗑️ حذف التذكرة", style=discord.ButtonStyle.secondary)
-    async def delete_ticket(self, interaction: discord.Interaction, button: Button):
-        support_role = interaction.guild.get_role(SUPPORT_ROLE_ID)
-        if support_role not in interaction.user.roles:
-            return await interaction.response.send_message(
-                "❌ الحذف فقط لفريق الدعم", ephemeral=True
+        log = interaction.guild.get_channel(LOG_CHANNEL_ID)
+        if log:
+            await log.send(
+                f"🔒 Ticket #{self.ticket_number} closed by {interaction.user}"
             )
 
-        await interaction.response.send_message(
-            "🗑️ سيتم حذف التذكرة بعد 3 ثواني...",
-            ephemeral=True
+        await interaction.followup.send(
+            f"✅ Ticket #{self.ticket_number} closed successfully."
+        )
+
+    @discord.ui.button(label="🗑️ Delete Ticket", style=discord.ButtonStyle.secondary)
+    async def delete_ticket(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+
+        support_role = interaction.guild.get_role(SUPPORT_ROLE_ID)
+        if support_role not in interaction.user.roles:
+            return await interaction.followup.send(
+                "❌ Only support staff can delete tickets."
+            )
+
+        log = interaction.guild.get_channel(LOG_CHANNEL_ID)
+        if log:
+            await log.send(
+                f"🗑️ Ticket #{self.ticket_number} deleted by {interaction.user}"
+            )
+
+        await interaction.followup.send(
+            "🗑️ Deleting ticket in 3 seconds..."
         )
         await asyncio.sleep(3)
         await interaction.channel.delete()
@@ -105,7 +131,7 @@ class TicketView(View):
         existing_ticket = user_has_open_ticket(guild, user)
         if existing_ticket:
             return await interaction.response.send_message(
-                f"❌ عندك تذكرة مفتوحة بالفعل: {existing_ticket.mention}",
+                f"❌ You already have an open ticket: {existing_ticket.mention}",
                 ephemeral=True
             )
 
@@ -114,7 +140,7 @@ class TicketView(View):
         role = guild.get_role(SUPPORT_ROLE_ID)
 
         channel = await guild.create_text_channel(
-            name=f"{ticket_type}-{ticket_number}",
+            name=f"{ticket_type.lower()}-{ticket_number}",
             category=category,
             topic=f"owner:{user.id}"
         )
@@ -124,40 +150,43 @@ class TicketView(View):
         await channel.set_permissions(role, read_messages=True, send_messages=True)
 
         await channel.send(
-            f"👋 أهلاً {user.mention}\n"
-            f"🎫 **رقم التذكرة:** `{ticket_number}`\n"
-            f"📂 **النوع:** {ticket_type}\n\n"
+            f"👋 Hello {user.mention}\n"
+            f"🎫 **Ticket ID:** `{ticket_number}`\n"
+            f"📂 **Type:** {ticket_type}\n\n"
             f"{role.mention}",
             view=CloseTicketView(ticket_number)
         )
 
         log = guild.get_channel(LOG_CHANNEL_ID)
-        await log.send(f"📌 Ticket #{ticket_number} ({ticket_type}) opened by {user}")
+        if log:
+            await log.send(
+                f"📌 Ticket #{ticket_number} ({ticket_type}) opened by {user}"
+            )
 
         await interaction.response.send_message(
-            f"✅ تم فتح تذكرتك: {channel.mention}",
+            f"✅ Your ticket has been created: {channel.mention}",
             ephemeral=True
         )
 
-    @discord.ui.button(label="📩 استفسار", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📩 Question", style=discord.ButtonStyle.primary)
     async def question(self, interaction, button):
-        await self.create_ticket(interaction, "استفسار")
+        await self.create_ticket(interaction, "Question")
 
-    @discord.ui.button(label="🛒 شراء", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🛒 Purchase", style=discord.ButtonStyle.success)
     async def buy(self, interaction, button):
-        await self.create_ticket(interaction, "شراء")
+        await self.create_ticket(interaction, "Purchase")
 
-    @discord.ui.button(label="⚠️ شكوى", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="⚠️ Complaint", style=discord.ButtonStyle.danger)
     async def complaint(self, interaction, button):
-        await self.create_ticket(interaction, "شكوى")
+        await self.create_ticket(interaction, "Complaint")
 
-    @discord.ui.button(label="💡 فكرة", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="💡 Suggestion", style=discord.ButtonStyle.secondary)
     async def idea(self, interaction, button):
-        await self.create_ticket(interaction, "فكرة")
+        await self.create_ticket(interaction, "Suggestion")
 
-    @discord.ui.button(label="☕ موكا", style=discord.ButtonStyle.secondary)
-    async def moka(self, interaction, button):
-        await self.create_ticket(interaction, "موكا")
+    @discord.ui.button(label="☕ Other", style=discord.ButtonStyle.secondary)
+    async def other(self, interaction, button):
+        await self.create_ticket(interaction, "Other")
 # ======================================================
 
 @bot.event
@@ -168,8 +197,8 @@ async def on_ready():
 @commands.has_permissions(administrator=True)
 async def ticketpanel(ctx):
     embed = discord.Embed(
-        title="🎫 نظام التذاكر",
-        description="اختر نوع التذكرة من الأزرار",
+        title="🎫 Ticket System",
+        description="Choose a ticket type using the buttons below",
         color=discord.Color.green()
     )
     await ctx.send(embed=embed, view=TicketView())
